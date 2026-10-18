@@ -39,16 +39,6 @@
 Локализация читается напрямую из SPT_Data/database/locales/global/ru.json — работает для любого языка сервера.
 Совместимость с Il2CppReferenceArray<T>, Il2CppStringArray, DelegateSupport.ConvertDelegate.
 Поддержка MongoID — 24-символьные hex-идентификаторы EFT.
-
-  ### Структура папки при сборке
-    Patches            
-    Plugin             
-    Utils              
-    0Harmony.dll       
-    Assembly-CSharp.dll
-    Comfort.dll        
-    FleaHelper.csproj  
-    PostPriceData.cs   
  
 ## Требования
 SPT 5.0
