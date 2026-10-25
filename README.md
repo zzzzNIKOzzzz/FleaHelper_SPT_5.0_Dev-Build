@@ -54,7 +54,7 @@ BepInEx 6.0.0-be.788+ (IL2CPP)
 zzzNIKOzzz
 
 ## Оригинальная идея:
-[QuickSellFlea](https://sp-mod.com/mod/2407/quicksellflea) мод от Lacyway  (версия для SPT 4.1.6 / Mono)
+[QuickSellFlea](https://sp-mod.com/mod/2407/quicksellflea) мод от [Lacyway](https://sp-mod.com/user/47969/lacyway)  (версия для SPT 4.1.6 / Mono)
 
 ## Лицензия:
 MIT — делай что хочешь, просто не забудь упомянуть автора.
