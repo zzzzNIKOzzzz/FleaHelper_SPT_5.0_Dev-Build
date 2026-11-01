@@ -16,7 +16,6 @@ using Il2CppInterop.Runtime;
 using UnityEngine;
 
 
-
 namespace FleaHelper
 {
     [BepInPlugin("zzzNIKOzzz.FleaHelper", "FleaHelper", PluginVersion)]
@@ -35,11 +34,12 @@ namespace FleaHelper
 
         private static readonly Dictionary<EPostingCurrency, string> CurrencyIds = new()
     {
-        { EPostingCurrency.RUB, "5449016a4bdc2d6f028b456f" },  
-        { EPostingCurrency.USD, "5696686a4bdc2d6f028b456a" },  
-        { EPostingCurrency.EUR, "569668774bdc2d6f028b4568" }   
+        { EPostingCurrency.RUB, "5449016a4bdc2d6f028b456f" },
+        { EPostingCurrency.USD, "5696686a4bdc2d6f028b456a" },
+        { EPostingCurrency.EUR, "569668774bdc2d6f028b4568" }
     };
 
+        private static string _pendingItemName = "";
         private static Dictionary<string, string> _localeCache = null;
 
         public override void Load()
@@ -129,7 +129,7 @@ namespace FleaHelper
         internal static void PostItemToFlea()
         {
             try
-            {         
+            {
                 Type itemUiContextType = FindType("EFT.UI.ItemUiContext");
                 if (itemUiContextType == null)
                 {
@@ -138,7 +138,7 @@ namespace FleaHelper
                 }
                 object itemUiContext = null;
 
-                
+
                 var staticInstanceProp = itemUiContextType.GetProperty("Instance",
                     BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic);
                 if (staticInstanceProp != null)
@@ -149,7 +149,7 @@ namespace FleaHelper
                 if (itemUiContext == null)
                     itemUiContext = GetSingletonInstance(itemUiContextType);
 
-                
+
                 if (itemUiContext == null)
                 {
                     try
@@ -167,7 +167,7 @@ namespace FleaHelper
                     ShowNotification("Нет контекста предмета (нет в инвентаре?)");
                     return;
                 }
-                
+
                 object itemContext = GetPropertyValue(itemUiContext, itemUiContextType, "CurrentItemContext")
                                      ?? GetPropertyValue(itemUiContext, itemUiContextType, "_CurrentItemContext_k__BackingField");
 
@@ -176,7 +176,7 @@ namespace FleaHelper
                     ShowNotification("Предмет не выбран");
                     return;
                 }
-                
+
                 var itemContextType = itemContext.GetType();
                 object item = GetPropertyValue(itemContext, itemContextType, "Item")
                               ?? GetFieldValue(itemContext, itemContextType, "Item");
@@ -197,7 +197,7 @@ namespace FleaHelper
                 string shortName = GetShortName(item, itemType, templateId);
                 Log.LogInfo("Имя предмета: " + shortName);
 
-                
+
                 if (!IsItemSellableOnFlea(item, itemType))
                 {
                     ShowNotification($"Нельзя продать: {shortName} (квестовый или запрещён)");
@@ -211,7 +211,7 @@ namespace FleaHelper
                 {
                     var handbookType = handbook.GetType();
 
-                    
+
                     if (templateIdObj != null)
                     {
                         var basePriceMethod = handbookType.GetMethod("GetBasePrice", BindingFlags.Public | BindingFlags.Instance);
@@ -244,7 +244,7 @@ namespace FleaHelper
 
                             try
                             {
-                                
+
                                 object[] methodArgs = new object[parms.Length];
                                 for (int i = 0; i < parms.Length; i++)
                                 {
@@ -268,13 +268,13 @@ namespace FleaHelper
                             catch { }
                         }
                     }
-                    
+
                     if (price <= 0)
                     {
                         price = 10000;
                     }
                 }
-                
+
                 if (price <= 0)
                 {
                     object template = GetPropertyValue(item, itemType, "Template");
@@ -289,12 +289,12 @@ namespace FleaHelper
                         }
                     }
                 }
-                
+
                 if (price <= 0)
                 {
                     price = 10000;
                 }
-                
+
                 object ragfairInstance = GetPropertyValue(itemUiContext, itemUiContextType, "_ragfair")
                                          ?? GetPropertyValue(itemUiContext, itemUiContextType, "Ragfair");
 
@@ -313,15 +313,13 @@ namespace FleaHelper
 
                 var ragType = ragfairInstance.GetType();
                 string currencyId = CurrencyIds.GetValueOrDefault(PostingCurrency.Value, CurrencyIds[EPostingCurrency.RUB]);
-                bool success = CreateOffer(ragfairInstance, ragType, itemId, currencyId, price, shortName);
 
-                if (success)
+                _pendingItemName = shortName;
+
+                bool success = CreateOffer(ragfairInstance, ragType, itemId, currencyId, price, shortName);
+                if (!success)
                 {
-                    ShowNotification($"Лот создан: {shortName} по цене {price}");
-                }
-                else
-                {
-                    ShowNotification($"Невозможно выставить лот {shortName} - смотри лог");
+                    ShowNotification($"Невозможно выставить лот {_pendingItemName} - смотри лог");
                 }
             }
             catch (Exception ex)
@@ -335,7 +333,7 @@ namespace FleaHelper
         {
             try
             {
-                
+
                 var addOfferMethod = ragType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)
                     .FirstOrDefault(m => m.Name == "AddOffer" || m.Name == "AddPlayerOffer");
 
@@ -353,22 +351,22 @@ namespace FleaHelper
 
                     if (paramType == typeof(bool))
                     {
-                        
+
                         args[i] = false;
                     }
                     else if (paramType == typeof(string))
                     {
-                        
+
                         args[i] = itemId;
                     }
                     else if (paramType.Name == "Il2CppStringArray" || paramType.Name == "String[]")
                     {
-                        
+
                         args[i] = CreateIl2CppStringArray(itemId, paramType);
                     }
                     else if (paramType.IsArray && paramType.Name.Contains("Il2Cpp"))
                     {
-                        
+
                         args[i] = CreateRequirementsArray(paramType, currencyId, price);
                     }
                     else if (paramType.Name.Contains("Il2CppReferenceArray"))
@@ -377,7 +375,7 @@ namespace FleaHelper
                     }
                     else if (paramType.Name == "Action" || paramType.Name.Contains("Action"))
                     {
-                        
+
                         args[i] = CreateCallback(paramType);
                     }
                     else
@@ -393,19 +391,31 @@ namespace FleaHelper
                     }
                 }
 
-                addOfferMethod.Invoke(ragfair, args);
+                object invokeResult = addOfferMethod.Invoke(ragfair, args);
+
+                if (addOfferMethod.ReturnType != typeof(void))
+                {
+                    if (invokeResult == null)
+                    {
+                        Log.LogWarning("[FleaHelper] AddOffer вернул null — возможно, лот не создан");
+                        ShowNotification("Предмет невозможно продать");
+                        return false;
+                    }
+                }
+
                 return true;
             }
             catch (Exception ex)
             {
                 Log.LogError("Ошибка создания предложения: " + ex.Message + "\n" + ex.StackTrace);
+                ShowNotification("Предмет невозможно продать (ошибка клиента)");
                 return false;
             }
         }
-        
+
         private static object CreateIl2CppStringArray(string itemId, Type arrayType)
         {
-            
+
             var ctor = arrayType.GetConstructor(new[] { typeof(string[]) });
             if (ctor != null)
             {
@@ -431,7 +441,7 @@ namespace FleaHelper
                 {
                     var il2cppType = Il2CppType.From(elementType);
                     var arr = Il2CppSystem.Array.CreateInstance(il2cppType, 1);
-                    
+
                     arr.SetValue((Il2CppSystem.Object)(Il2CppSystem.String)itemId, 0);
                     return arr;
                 }
@@ -440,7 +450,7 @@ namespace FleaHelper
 
             return null;
         }
-        
+
         private static object CreateRequirementsArray(Type arrayType, string currencyId, int price)
         {
             try
@@ -469,7 +479,7 @@ namespace FleaHelper
                 {
                     return null;
                 }
-                
+
                 SetFieldOrProp(requirement, elementType, "_tpl", currencyId);
                 SetFieldOrProp(requirement, elementType, "count", (double)price);
 
@@ -518,50 +528,45 @@ namespace FleaHelper
             }
         }
 
-                private static object CreateCallback(Type callbackType)
+        private static object CreateCallback(Type callbackType)
         {
             try
             {
                 if (callbackType == typeof(Action) || callbackType == typeof(Il2CppSystem.Action))
                 {
-                    return new Action(() => { });
+                    Action emptyAction = () => { };
+
+                    if (callbackType == typeof(Il2CppSystem.Action))
+                    {
+                        return DelegateSupport.ConvertDelegate<Il2CppSystem.Action>(emptyAction);
+                    }
+                    return emptyAction;
                 }
 
-                if (callbackType.IsGenericType && 
-                    (callbackType.GetGenericTypeDefinition() == typeof(Action<>) || 
-                     callbackType.GetGenericTypeDefinition() == typeof(Il2CppSystem.Action<>)))
+                if (callbackType.IsGenericType)
                 {
-                    var argType = callbackType.GetGenericArguments()[0];
-                    
-                    var method = typeof(FleaHelperPlugin).GetMethod(nameof(OnActionCallback), BindingFlags.NonPublic | BindingFlags.Static)
-                        .MakeGenericMethod(argType);
-                    var managedDelegateType = typeof(Action<>).MakeGenericType(argType);
-                    var managedDelegate = Delegate.CreateDelegate(managedDelegateType, method);
-
-                    var convertMethod = typeof(DelegateSupport).GetMethod("ConvertDelegate", BindingFlags.Public | BindingFlags.Static);
-                    if (convertMethod != null)
+                    var genericDef = callbackType.GetGenericTypeDefinition();
+                    if (genericDef == typeof(Action<>) || genericDef == typeof(Il2CppSystem.Action<>))
                     {
-                        var genericConvert = convertMethod.MakeGenericMethod(callbackType);
-                        return genericConvert.Invoke(null, new object[] { managedDelegate });
+                        var argType = callbackType.GetGenericArguments()[0];
+                        var method = typeof(FleaHelperPlugin).GetMethod(nameof(OnActionCallback), BindingFlags.NonPublic | BindingFlags.Static)
+                            .MakeGenericMethod(argType);
+                        var managedDelegateType = typeof(Action<>).MakeGenericType(argType);
+                        var managedDelegate = Delegate.CreateDelegate(managedDelegateType, method);
+                        var convertMethod = typeof(DelegateSupport).GetMethod("ConvertDelegate", BindingFlags.Public | BindingFlags.Static);
+                        if (convertMethod != null)
+                        {
+                            var genericConvert = convertMethod.MakeGenericMethod(callbackType);
+                            return genericConvert.Invoke(null, new object[] { managedDelegate });
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Log.LogWarning("[FleaHelper] CreateCallback error: " + ex.Message);
+                Log.LogError("[FleaHelper] CreateCallback error: " + ex.Message);
             }
 
-            try
-            {
-                Action callback = () => { };
-                var convertMethod = typeof(DelegateSupport).GetMethod("ConvertDelegate", BindingFlags.Public | BindingFlags.Static);
-                if (convertMethod != null)
-                {
-                    var genericConvert = convertMethod.MakeGenericMethod(callbackType);
-                    return genericConvert.Invoke(null, new object[] { callback });
-                }
-            }
-            catch { }
             return null;
         }
 
@@ -569,28 +574,33 @@ namespace FleaHelper
         {
             try
             {
+                if (result == null)
+                {
+                    Log.LogWarning("[FleaHelper] Колбэк AddOffer получил null");
+                    return;
+                }
+
                 var type = typeof(T);
                 var succeededProp = type.GetProperty("Succeeded") ?? type.GetProperty("Success");
                 bool isSuccess = true;
-                
                 if (succeededProp != null)
-                {
                     isSuccess = (bool)succeededProp.GetValue(result);
-                }
 
                 if (!isSuccess)
                 {
                     var errorProp = type.GetProperty("Error");
-                    string error = errorProp != null ? errorProp.GetValue(result)?.ToString() : "Unknown error";
-
+                    string error = errorProp?.GetValue(result)?.ToString() ?? "Unknown error";
                     Log.LogError("[FleaHelper] Ошибка выставления лота: " + error);
 
-                    string message = "Предмет невозможно продать";
-                    if (error.Contains("level -1") || error.Contains("Unable to trade"))
+                    if (!error.Contains("level -1") && !error.Contains("Unable to trade"))
                     {
-                        message = "Предмет невозможно продать (ограничение сервера)";
+                        ShowNotification("Предмет невозможно продать (ошибка)");
                     }
-                    ShowNotification(message);
+                }
+                else
+                {
+                    Log.LogInfo("[FleaHelper] Сервер подтвердил создание лота.");
+                    ShowNotification($"Лот создан: {_pendingItemName}");
                 }
             }
             catch (Exception ex)
@@ -598,17 +608,17 @@ namespace FleaHelper
                 Log.LogWarning("[FleaHelper] OnActionCallback error: " + ex.Message);
             }
         }
-        
+
         private static string ExtractMongoId(object mongoIdObj)
         {
             if (mongoIdObj == null) return null;
 
-            
+
             string idStr = mongoIdObj.ToString();
             if (idStr != null && idStr.Length == 24 && IsHexString(idStr))
                 return idStr;
 
-            
+
             var type = mongoIdObj.GetType();
             foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic))
             {
@@ -657,7 +667,7 @@ namespace FleaHelper
             }
             return true;
         }
-        
+
         private static string ExtractItemId(object item, Type itemType)
         {
             foreach (var propName in new[] { "Id", "ItemId", "_id" })
@@ -676,7 +686,7 @@ namespace FleaHelper
 
         private static string GetShortName(object item, Type itemType, string fallback)
         {
-            
+
             string templateId = ExtractMongoId(GetPropertyValue(item, itemType, "TemplateId"));
             if (!string.IsNullOrEmpty(templateId) && templateId != "unknown")
             {
@@ -685,7 +695,7 @@ namespace FleaHelper
                     return localeName;
             }
 
-            
+
             object template = GetPropertyValue(item, itemType, "Template");
             if (template != null)
             {
@@ -699,7 +709,7 @@ namespace FleaHelper
                 }
             }
 
-            
+
             object shortNameObj = GetPropertyValue(item, itemType, "ShortName");
             if (shortNameObj == null) return fallback;
 
@@ -724,7 +734,7 @@ namespace FleaHelper
                 }
                 Log.LogInfo($"[Locale] Загружено {_localeCache.Count} записей локализации");
 
-                
+
                 int dumpCount = 0;
                 foreach (var kvp in _localeCache)
                 {
@@ -737,7 +747,7 @@ namespace FleaHelper
                 }
             }
 
-            
+
             string[] keys = {
             templateId + " ShortName",
             "templates " + templateId + " ShortName",
@@ -754,7 +764,7 @@ namespace FleaHelper
                 }
             }
 
-            
+
             foreach (var kvp in _localeCache)
             {
                 if (kvp.Key.EndsWith(templateId + " ShortName") && !string.IsNullOrEmpty(kvp.Value))
@@ -768,7 +778,7 @@ namespace FleaHelper
             return null;
         }
 
-        
+
         private static Dictionary<string, string> LoadLocaleFile()
         {
             try
@@ -841,7 +851,7 @@ namespace FleaHelper
         {
             SkipJsonWhitespace(json, ref pos);
             if (pos >= json.Length || json[pos] != '{') return;
-            pos++; 
+            pos++;
 
             while (true)
             {
@@ -849,32 +859,32 @@ namespace FleaHelper
                 if (pos >= json.Length) return;
                 if (json[pos] == '}') { pos++; return; }
 
-                
+
                 string key = ParseJsonString(json, ref pos);
                 if (key == null) return;
 
                 SkipJsonWhitespace(json, ref pos);
                 if (pos >= json.Length || json[pos] != ':') return;
-                pos++; 
+                pos++;
                 SkipJsonWhitespace(json, ref pos);
 
                 string fullKey = string.IsNullOrEmpty(prefix) ? key : prefix + " " + key;
 
                 if (pos < json.Length && json[pos] == '"')
                 {
-                    
+
                     string value = ParseJsonString(json, ref pos);
                     if (value != null)
                         dict[fullKey] = value;
                 }
                 else if (pos < json.Length && json[pos] == '{')
                 {
-                    
+
                     ParseJsonObject(json, ref pos, dict, fullKey);
                 }
                 else
                 {
-                    
+
                     SkipJsonValue(json, ref pos);
                 }
 
@@ -886,7 +896,7 @@ namespace FleaHelper
         private static string ParseJsonString(string json, ref int pos)
         {
             if (pos >= json.Length || json[pos] != '"') return null;
-            pos++; 
+            pos++;
             var sb = new System.Text.StringBuilder();
 
             while (pos < json.Length)
@@ -894,7 +904,7 @@ namespace FleaHelper
                 char c = json[pos];
                 if (c == '"')
                 {
-                    pos++; 
+                    pos++;
                     return sb.ToString();
                 }
                 if (c == '\\' && pos + 1 < json.Length)
@@ -932,7 +942,7 @@ namespace FleaHelper
             }
             return sb.ToString();
         }
-        
+
         private static void SkipJsonWhitespace(string json, ref int pos)
         {
             while (pos < json.Length)
@@ -944,7 +954,7 @@ namespace FleaHelper
                     break;
             }
         }
-        
+
         private static void SkipJsonValue(string json, ref int pos)
         {
             if (pos >= json.Length) return;
@@ -978,13 +988,13 @@ namespace FleaHelper
                     pos++;
                 }
             }
-        }        
-        
+        }
+
         private static string TryGetLocalizedString(object obj, string templateId = null)
         {
             if (obj == null) return null;
 
-            
+
             if (obj is string strKey)
             {
                 if (!string.IsNullOrEmpty(templateId))
@@ -998,7 +1008,7 @@ namespace FleaHelper
 
             var type = obj.GetType();
 
-            
+
             string rawKey = null;
             try
             {
@@ -1010,7 +1020,7 @@ namespace FleaHelper
                 }
             }
             catch { }
-            
+
             try
             {
                 var localizedMethods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)
@@ -1043,7 +1053,7 @@ namespace FleaHelper
                 }
             }
             catch { }
-            
+
             try
             {
                 var valProp = type.GetProperty("Value",
@@ -1063,7 +1073,7 @@ namespace FleaHelper
             }
             catch { }
 
-            
+
             if (!string.IsNullOrEmpty(templateId))
             {
                 string resolved = ResolveItemNameFromLocaleFile(templateId);
@@ -1071,20 +1081,20 @@ namespace FleaHelper
                     return resolved;
             }
 
-            
+
             if (!string.IsNullOrEmpty(rawKey))
                 return rawKey;
 
-            
+
             string s = obj.ToString();
             if (s.Contains("ShortName") || s.Contains("LocalizedString") || (s.Length == 24 && IsHexString(s)))
                 return null;
             return s;
         }
-        
+
         private static void SetFieldOrProp(object obj, Type type, string name, object value)
         {
-            
+
             var field = type.GetField(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
             if (field != null)
             {
@@ -1093,7 +1103,7 @@ namespace FleaHelper
                 return;
             }
 
-            
+
             var prop = type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
             if (prop != null && prop.CanWrite)
             {
@@ -1111,7 +1121,7 @@ namespace FleaHelper
 
             if (targetType == sourceType) return value;
 
-            
+
             if (targetType == typeof(int))
                 return Convert.ToInt32(value);
             if (targetType == typeof(long))
@@ -1171,14 +1181,14 @@ namespace FleaHelper
 
         internal static void ShowNotification(string message)
         {
-            
+
             try
             {
                 Log.LogInfo("[Уведомление] " + message);
             }
             catch { }
 
-            
+
             try
             {
                 if (Singleton<NotificationManager>.Instantiated)
@@ -1186,8 +1196,8 @@ namespace FleaHelper
                     var nm = Singleton<NotificationManager>.Instance;
                     if (nm != null)
                     {
-                        
-                        
+
+
                         var allMethods = typeof(NotificationManager).GetMethods(
                                 BindingFlags.Public | BindingFlags.NonPublic |
                                 BindingFlags.Static | BindingFlags.Instance)
@@ -1195,8 +1205,8 @@ namespace FleaHelper
                             .OrderByDescending(m => m.GetParameters().Length)
                             .ToList();
 
-                        
-                        
+
+
                         object colorArg = null;
                         try
                         {
@@ -1234,7 +1244,7 @@ namespace FleaHelper
                                         invokeArgs[i] = null;
                                 }
 
-                                
+
                                 object target = targetMethod.IsStatic ? null : nm;
                                 targetMethod.Invoke(target, invokeArgs);
                                 return;
@@ -1261,16 +1271,16 @@ namespace FleaHelper
             return null;
         }
     }
-    
+
     internal class FleaHelperBehaviour : MonoBehaviour
     {
-        
+
         private bool _hotkeyWasPressed = false;
 
-        
+
         private void Update()
         {
-            
+
             if (FleaHelperPlugin.ChangeCurrencyKey.Value != KeyCode.None &&
                 Input.GetKey(FleaHelperPlugin.ChangeCurrencyKey.Value))
             {
@@ -1281,7 +1291,7 @@ namespace FleaHelper
                 }
             }
 
-            
+
             if (Input.GetKey(FleaHelperPlugin.Hotkey.Value))
             {
                 if (!_hotkeyWasPressed)
@@ -1291,7 +1301,7 @@ namespace FleaHelper
                 }
             }
 
-            
+
             if (!Input.GetKey(FleaHelperPlugin.Hotkey.Value) &&
                 (FleaHelperPlugin.ChangeCurrencyKey.Value == KeyCode.None ||
                  !Input.GetKey(FleaHelperPlugin.ChangeCurrencyKey.Value)))
@@ -1303,12 +1313,12 @@ namespace FleaHelper
 
     public enum EPostingCurrency
     {
-        RUB,  
-        USD,  
-        EUR   
+        RUB,
+        USD,
+        EUR
     }
 
-} 
+}
 
 namespace FleaHelper.Patches
 {
